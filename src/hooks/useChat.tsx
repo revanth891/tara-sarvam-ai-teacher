@@ -12,20 +12,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState(''), [detectedLanguage, setDetectedLanguage] = useState('');
   const [timings, setTimings] = useState<Record<string, number>>({}), [audioBlocked, setAudioBlocked] = useState(false);
   const analyser = useRef<AnalyserNode | null>(null), audioContext = useRef<AudioContext | null>(null);
-  const sources = useRef(new Set<AudioBufferSourceNode>());
+  const sources = useRef(new Set<AudioBufferSourceNode>()); const renderTimer = useRef<ReturnType<typeof setTimeout>>();
   const controller = useRef<AbortController | null>(null), epoch = useRef(0), nextPlay = useRef(0);
   const recorder = useRef<MediaRecorder | null>(null), stream = useRef<MediaStream | null>(null), recordingTimer = useRef<ReturnType<typeof setTimeout>>();
   const audioChain = useRef(Promise.resolve()), startedAt = useRef(0), firstAudio = useRef(false);
   const resumeAudio = useCallback(async () => {
     if (!audioContext.current) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      audioContext.current = new AudioCtx(); analyser.current = audioContext.current!.createAnalyser();
+      audioContext.current = new AudioCtx({ latencyHint: 'interactive' }); analyser.current = audioContext.current!.createAnalyser();
       analyser.current!.fftSize = 512; analyser.current!.smoothingTimeConstant = .6; analyser.current!.connect(audioContext.current!.destination);
     }
     await audioContext.current!.resume(); setAudioBlocked(audioContext.current!.state !== 'running');
   }, []);
   const stop = useCallback(() => {
-    epoch.current++; controller.current?.abort(); controller.current = null;
+    epoch.current++; clearTimeout(renderTimer.current); renderTimer.current = undefined; controller.current?.abort(); controller.current = null;
     sources.current.forEach(source => { try { source.stop(); } catch {} }); sources.current.clear(); nextPlay.current = 0; audioChain.current = Promise.resolve();
     setSpeaking(false); setLoading(false); setTranscribing(false);
     if (recorder.current?.state === 'recording') { recorder.current.onstop = null; recorder.current.stop(); }
@@ -55,10 +55,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     startedAt.current = performance.now(); firstAudio.current = false; setLoading(true); setError(''); setTimings({});
     const previous = historyRef.current.slice(-12), id = Date.now();
     const userTurn: Turn = { role: 'user', content: text, id }, pending: Turn = { role: 'assistant', content: '', id: id + 1 };
-    historyRef.current = [...previous, userTurn]; setHistory([...previous, userTurn, pending]); let reply = '';
+    historyRef.current = [...previous, userTurn]; setHistory([...previous, userTurn, pending]); let reply = ''; const flushTranscript = () => { renderTimer.current = undefined; if (requestEpoch === epoch.current) setHistory([...previous, userTurn, { ...pending, content: reply }]); };
     const receive = (event: any) => {
       if (requestEpoch !== epoch.current) return;
-      if (event.type === 'text') { if (!reply) setTimings(prev => ({ ...prev, firstTextMs: Math.round(performance.now() - startedAt.current) })); reply += event.text || event.delta || ''; setHistory([...previous, userTurn, { ...pending, content: reply }]); }
+      if (event.type === 'text') { if (!reply) setTimings(prev => ({ ...prev, firstTextMs: Math.round(performance.now() - startedAt.current) })); const first = !reply; reply += event.text || event.delta || ''; if (first) flushTranscript(); else if (!renderTimer.current) renderTimer.current = setTimeout(flushTranscript, 80); }
       else if (event.type === 'audio' && event.audio) enqueueAudio(event, requestEpoch);
       else if (event.type === 'done') { setTimings(prev => ({ ...event.timings, ...prev })); if (event.language) setDetectedLanguage(event.language); }
       else if (event.type === 'error' || event.type === 'warning') setError(event.message || event.error || 'The teacher could not respond. Please try again.');
@@ -75,7 +75,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (done) { if (pendingData.trim()) receive(JSON.parse(pendingData)); break; }
       }
     } catch (err: any) { if (err.name !== 'AbortError' && requestEpoch === epoch.current) setError(err.message || 'Could not connect. Try again.'); }
-    finally { if (requestEpoch === epoch.current) { historyRef.current = reply ? [...previous, userTurn, { ...pending, content: reply }] : [...previous, userTurn]; setHistory(historyRef.current); setLoading(false); } }
+    finally { if (requestEpoch === epoch.current) { clearTimeout(renderTimer.current); renderTimer.current = undefined; historyRef.current = reply ? [...previous, userTurn, { ...pending, content: reply }] : [...previous, userTurn]; setHistory(historyRef.current); setLoading(false); } }
   };
   const toggleRecording = async () => {
     if (recording) { recorder.current?.stop(); return; } stop(); setError('');
@@ -114,5 +114,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   return <ChatContext.Provider value={{ chat, stop, reset, toggleRecording, history, loading, recording, transcribing, speaking, status, error, settings, setSettings, detectedLanguage, timings, analyser, audioBlocked, resumeAudio }}>{children}</ChatContext.Provider>;
 }
 export function useChat() { const context = useContext(ChatContext); if (!context) throw new Error('ChatProvider is required'); return context; }
+
 
 

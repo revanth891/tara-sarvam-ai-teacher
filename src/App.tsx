@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Component, lazy, memo, Suspense, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, useProgress } from '@react-three/drei';
 import { ZoomIn, ZoomOut, RotateCcw, User, UserRound, Palette, Dog, MessageSquareText, Mic, Send, Sun, Moon, BookOpen, ChevronDown, ChevronUp, Square, Globe, Sparkles, X } from 'lucide-react';
@@ -11,6 +11,7 @@ class SceneBoundary extends Component<any,{failed:boolean}>{state={failed:false}
 function LoadingAvatar(){const{progress}=useProgress();return <Html center><div className="avatar-loading">Loading avatar · {Math.round(progress)}%</div></Html>;}
 const SUBJECTS=['Science','Mathematics','Languages','History','Technology','Anything'];
 const PROMPTS:Record<string,string[]>={Science:['Why is the sky blue?','Explain gravity simply.'],Mathematics:['Help me understand fractions.','Teach me algebra step by step.'],Languages:['Help me practice a conversation.','Teach me five useful new words.'],History:['Tell me about the Indus Valley.','Quiz me on Indian history.'],Technology:['How does AI actually learn?','Teach me to code.'],Anything:['Teach me something surprising.','Help me learn a new skill.']};
+const OriginalScene=memo(function OriginalScene(){return <div className="spline-background"><SceneBoundary><Suspense fallback={<div className="spline-loading">Loading your original Spline scene…</div>}><Spline scene="https://prod.spline.design/brVeEJTgiFzKpbGK/scene.splinecode" onLoad={(scene:any)=>{const cursor=scene.findObjectByName("Cursor Target");if(cursor)cursor.visible=false;}}/></Suspense></SceneBoundary></div>;});
 function App(){
 const{chat,stop,reset,toggleRecording,history,loading,recording,speaking,transcribing,status,error,settings,setSettings,detectedLanguage,timings,audioBlocked,resumeAudio}=useChat();
 const[input,setInput]=useState(''),[selectedModel,setSelectedModel]=useState('stylized'),[cameraState,setCameraState]=useState('default'),[mode,setMode]=useState('text'),[dark,setDark]=useState(false),[teacherOpen,setTeacherOpen]=useState(true),[historyOpen,setHistoryOpen]=useState(true),[isDesktop,setIsDesktop]=useState(window.innerWidth>=1024);
@@ -18,12 +19,12 @@ const transcriptEnd=useRef<HTMLDivElement>(null);
 useEffect(()=>{setSettings(prev=>({...prev,voiceGender:selectedModel==='female'?'female':'male'}));},[selectedModel,setSettings]);
 useEffect(()=>{const cursor=createFoundryCursor();cursor.enableRefraction(true);return()=>cursor.dispose();},[]);
 useEffect(()=>{const resize=()=>setIsDesktop(window.innerWidth>=1024);window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize);},[]);
-useEffect(()=>{transcriptEnd.current?.scrollIntoView({behavior:'smooth',block:'nearest'});},[history]);
+useEffect(()=>{transcriptEnd.current?.scrollIntoView({behavior:'auto',block:'nearest'});},[history]);
 const busy=loading||speaking||transcribing;const submit=(text=input)=>{if(!text.trim())return;setInput('');setHistoryOpen(true);void chat(text);};
 const languageLabel=LANGUAGES.find(([code])=>code===detectedLanguage)?.[1]||detectedLanguage;
 const Tool=({icon:Icon,label,onClick,active=false}:any)=><button type="button" className={'tool-button '+(active?'active':'')} title={label} aria-label={label} onClick={onClick}><Icon size={19}/><span className="tool-label">{label}</span></button>;
 return <div className={'original-scene-app '+(dark?'night':'day')}>
-{isDesktop&&<div className="spline-background"><SceneBoundary><Suspense fallback={<div className="spline-loading">Loading your original Spline scene…</div>}><Spline scene="https://prod.spline.design/brVeEJTgiFzKpbGK/scene.splinecode" onLoad={(scene:any)=>{const cursor=scene.findObjectByName("Cursor Target");if(cursor)cursor.visible=false;}}/></Suspense></SceneBoundary></div>}
+{isDesktop&&<OriginalScene/>}
 <FoundryShader/>
 <div className="original-avatar"><Canvas dpr={[1,1.5]} shadows camera={{fov:50,near:.1,far:100,position:[0,1.2,2.5]}} gl={{antialias:true,alpha:true}}><Suspense fallback={<LoadingAvatar/>}><Experience selectedModel={selectedModel} cameraState={cameraState}/></Suspense></Canvas></div>
 <div className="overlay-ui"><div className="original-tools"><div className="gradient-border"><div className="glass-inner tool-stack"><Tool icon={ZoomIn} label="Zoom In" onClick={()=>setCameraState('zoomed')}/><Tool icon={RotateCcw} label="Default" onClick={()=>setCameraState('default')}/><Tool icon={ZoomOut} label="Zoom Out" onClick={()=>setCameraState('zoomout')}/></div></div><div className="gradient-border"><div className="glass-inner tool-stack"><Tool icon={UserRound} label="Female" active={selectedModel==='female'} onClick={()=>setSelectedModel('female')}/><Tool icon={Palette} label="Stylized" active={selectedModel==='stylized'} onClick={()=>setSelectedModel('stylized')}/><Tool icon={Dog} label="Shiba" active={selectedModel==='shiba'} onClick={()=>setSelectedModel('shiba')}/><Tool icon={User} label="Male" active={selectedModel==='wawa'} onClick={()=>setSelectedModel('wawa')}/></div></div></div>
@@ -36,6 +37,7 @@ return <div className={'original-scene-app '+(dark?'night':'day')}>
 <div className={'original-composer '+(mode==='voice'?'voice-mode':'')}>{mode==='text'?<div className="gradient-border"><form className="glass-inner composer-row" onSubmit={e=>{e.preventDefault();submit();}}><input aria-label="Ask your teacher" value={input} onChange={e=>setInput(e.target.value)} placeholder="Type your message..." maxLength={2000}/><button type="button" aria-label={recording?'Stop recording and send':'Record your question'} className={recording?'recording':''} onClick={()=>void toggleRecording()}>{recording?<Square size={18}/>:<Mic size={18}/>}</button><button aria-label="Send question" type="submit" disabled={!input.trim()}><Send size={20}/></button></form></div>:<div className="gradient-border"><div className="glass-inner voice-composer"><button className={'record-orb '+(recording?'recording':'')} aria-label={recording?'Stop recording and send':'Record your question'} onClick={()=>void toggleRecording()}>{recording?<Square size={25}/>:<Mic size={25}/>}</button><span>{recording?'Recording… Tap to stop.':transcribing?'Understanding your question…':'Tap to speak in your language.'}</span></div></div>}</div>
 </div></div>;
 }export default App;
+
 
 
 
