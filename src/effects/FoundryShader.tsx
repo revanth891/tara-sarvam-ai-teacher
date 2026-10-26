@@ -37,19 +37,19 @@ void main(){
   for(int i=0;i<3;i++){
     float strand=float(i);
     vec3 flow=orbit(.12+strand*.31,strand,.6);
-    vec2 q=turn(strand*.64+uTime*.025)*p;
-    float wave=sin(q.y*5.5+uTime*.19+strand*2.)*.105;
+    vec2 q=turn(strand*.64+uTime*.12)*p;
+    float wave=sin(q.y*5.5+uTime*.65+strand*2.)*.105;
     float lane=abs(q.x+wave-flow.x*.36);
-    float ribbon=exp(-lane*lane*14.)*(.68+.32*sin(q.y*3.+uTime*.22+strand));
+    float ribbon=exp(-lane*lane*14.)*(.68+.32*sin(q.y*3.+uTime*.55+strand));
     vec3 tint=mix(cyan,lavender,clamp(uv.x*.55+uv.y*.45,0.,1.));
     tint=mix(tint,rose,strand*.22);
     color+=tint*ribbon;
     density+=ribbon;
   }
-  // Keep the central robot clear; color lives at the screen perimeter.
+  // Keep the central robot clear; visible moving color wraps the perimeter.
   float edgeDistance=min(min(uv.x,1.-uv.x),min(uv.y,1.-uv.y));
-  float edge=1.-smoothstep(.025,.28,edgeDistance);
-  float alpha=clamp(density*.13,0.,.34)*edge;
+  float edge=1.-smoothstep(.035,.48,edgeDistance);
+  float alpha=clamp(.12+density*.32,0.,.62)*edge;
   vec3 tint=color/max(density,.001);
   gl_FragColor=vec4(tint*alpha,alpha);
 }
@@ -171,3 +171,4 @@ export function FoundryShader() {
 }
 
 export default FoundryShader;
+

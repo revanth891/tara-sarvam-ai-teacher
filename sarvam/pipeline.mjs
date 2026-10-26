@@ -1,6 +1,7 @@
 // Server-only Sarvam integration. Native Node 22+ APIs; no Python, temp audio or SDK.
 export const VOICE_LANGUAGES = ['en-IN', 'hi-IN', 'te-IN', 'ta-IN', 'kn-IN', 'ml-IN', 'mr-IN', 'bn-IN', 'gu-IN', 'pa-IN', 'od-IN'];
-const VOICES = { 'en-IN': 'ritu_en_edtech', 'hi-IN': 'ritu_hi_edtech', 'te-IN': 'kavitha_te_conversation', 'kn-IN': 'chaitra_kn_conversation', 'mr-IN': 'ishita_mr_conversational', 'bn-IN': 'roopa_bn_conversational', 'gu-IN': 'pooja_gu_conversational', 'ta-IN': 'gokul_ta_narration', 'pa-IN': 'anand_pa_conversation' };
+const FEMALE_VOICES = { 'en-IN': 'ritu_en_edtech', 'hi-IN': 'ritu_hi_edtech', 'te-IN': 'kavitha_te_conversation', 'kn-IN': 'chaitra_kn_conversation', 'mr-IN': 'ishita_mr_conversational', 'bn-IN': 'roopa_bn_conversational', 'gu-IN': 'pooja_gu_conversational' };
+const MALE_VOICES = { 'en-IN': 'shubh_en_narration', 'hi-IN': 'shubh_hi_customer', 'te-IN': 'tarun_te_narration', 'kn-IN': 'chetan_kn_conversation', 'mr-IN': 'nilesh_mr_conversation', 'bn-IN': 'arnab_bn_conversation', 'gu-IN': 'bhavik_gu_conversation', 'ta-IN': 'gokul_ta_narration', 'pa-IN': 'anand_pa_conversation' };
 const API_BASE = 'https://api.sarvam.ai';
 const LANGUAGE_NAMES = { 'en-IN': 'English', 'hi-IN': 'Hindi', 'te-IN': 'Telugu', 'ta-IN': 'Tamil', 'kn-IN': 'Kannada', 'ml-IN': 'Malayalam', 'mr-IN': 'Marathi', 'bn-IN': 'Bengali', 'gu-IN': 'Gujarati', 'pa-IN': 'Punjabi', 'od-IN': 'Odia' };
 
@@ -108,9 +109,13 @@ export function buildMessages(input) {
   return [{ role: 'system', content: system }, ...history, { role: 'user', content: input.message.trim() }];
 }
 
-export async function synthesize(text, language, signal) {
-  const model = process.env.SARVAM_TTS_MODEL || 'bulbul:v4-flash';
-  const speaker = process.env.SARVAM_TTS_SPEAKER || (model === 'bulbul:v4-flash' ? VOICES[language] : 'ritu');
+export async function synthesize(text, language, signal, voiceGender = 'male') {
+  const gender = voiceGender === 'female' ? 'female' : 'male';
+  const persona = (gender === 'female' ? FEMALE_VOICES : MALE_VOICES)[language];
+  const configuredModel = process.env.SARVAM_TTS_MODEL || 'bulbul:v4-flash';
+  // V3's multilingual voices keep the chosen gender when no V4 persona is listed.
+  const model = configuredModel === 'bulbul:v4-flash' && !persona ? 'bulbul:v3' : configuredModel;
+  const speaker = process.env.SARVAM_TTS_SPEAKER || (model === 'bulbul:v4-flash' ? persona : gender === 'female' ? 'ritu' : 'shubh');
   const response = await callSarvam('/text-to-speech', { signal, body: {
     text, language_code: language, model,
     ...(speaker ? { speaker } : {}), speech_sample_rate: 22050, output_audio_codec: 'wav', pace: 1.05,
@@ -140,7 +145,8 @@ export async function streamChat(input, emit, signal) {
       return;
     }
     // Begin synthesis immediately; ordered output prevents overlapping/reordered speech.
-    const audioJob = synthesize(text, language, signal).then(audio => ({ audio })).catch(error => ({ error }));
+    const voiceGender = input.voiceGender === 'female' ? 'female' : 'male';
+    const audioJob = synthesize(text, language, signal, voiceGender).then(audio => ({ audio })).catch(error => ({ error }));
     jobs.push(audioJob);
     audioQueue = audioQueue.then(async () => {
       const { audio, error } = await audioJob;
@@ -151,7 +157,7 @@ export async function streamChat(input, emit, signal) {
         return;
       }
       if (firstAudioMs === null) firstAudioMs = Math.round(performance.now() - start);
-      emit({ type: 'audio', audio, mimeType: 'audio/wav', text, language, index, facialExpression: 'smile', animation: 'Talking', lipsync: { mouthCues: [] } });
+      emit({ type: 'audio', audio, mimeType: 'audio/wav', text, language, voiceGender, index, facialExpression: 'smile', animation: 'Talking', lipsync: { mouthCues: [] } });
     });
   };
   try {

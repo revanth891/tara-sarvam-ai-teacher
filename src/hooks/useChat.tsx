@@ -1,13 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 export type Turn = { role: 'user' | 'assistant'; content: string; id: number };
 export const LANGUAGES = [['auto','Auto detect'],['en-IN','English'],['hi-IN','हिन्दी'],['te-IN','తెలుగు'],['ta-IN','தமிழ்'],['kn-IN','ಕನ್ನಡ'],['ml-IN','മലയാളം'],['bn-IN','বাংলা'],['mr-IN','मराठी'],['gu-IN','ગુજરાતી'],['pa-IN','ਪੰਜਾਬੀ'],['od-IN','ଓଡ଼ିଆ']] as const;
-type Settings = { subject: string; level: string; language: string; lessonMode: string };
+type Settings = { subject: string; level: string; language: string; lessonMode: string; voiceGender: 'male' | 'female' };
 type ChatContextType = { chat: (text: string, language?: string) => Promise<void>; stop: () => void; reset: () => void; toggleRecording: () => Promise<void>; history: Turn[]; loading: boolean; recording: boolean; speaking: boolean; transcribing: boolean; status: string; error: string; settings: Settings; setSettings: React.Dispatch<React.SetStateAction<Settings>>; detectedLanguage: string; timings: Record<string, number>; analyser: React.MutableRefObject<AnalyserNode | null>; audioBlocked: boolean; resumeAudio: () => Promise<void> };
 const ChatContext = createContext<ChatContextType | null>(null);
 const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [history, setHistory] = useState<Turn[]>([]); const historyRef = useRef<Turn[]>([]);
-  const [settings, setSettings] = useState<Settings>({ subject: 'Science', level: 'Curious beginner', language: 'auto', lessonMode: 'Explain simply' });
+  const [settings, setSettings] = useState<Settings>({ subject: 'Science', level: 'Curious beginner', language: 'auto', lessonMode: 'Explain simply', voiceGender: 'male' });
   const [loading, setLoading] = useState(false), [recording, setRecording] = useState(false), [transcribing, setTranscribing] = useState(false), [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState(''), [detectedLanguage, setDetectedLanguage] = useState('');
   const [timings, setTimings] = useState<Record<string, number>>({}), [audioBlocked, setAudioBlocked] = useState(false);
@@ -114,4 +114,5 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   return <ChatContext.Provider value={{ chat, stop, reset, toggleRecording, history, loading, recording, transcribing, speaking, status, error, settings, setSettings, detectedLanguage, timings, analyser, audioBlocked, resumeAudio }}>{children}</ChatContext.Provider>;
 }
 export function useChat() { const context = useContext(ChatContext); if (!context) throw new Error('ChatProvider is required'); return context; }
+
 
