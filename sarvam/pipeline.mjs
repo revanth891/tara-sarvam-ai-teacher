@@ -188,15 +188,18 @@ export async function streamChat(input, emit, signal) {
 
 export async function transcribeAudio({ audio, mimeType = 'audio/webm', language = 'auto' }, signal) {
   if (typeof audio !== 'string' || !audio) throw new ApiError('No recorded audio was provided.', 400);
-  const base64 = audio.replace(/^data:audio\/[^;]+;base64,/, '');
+  const base64 = audio.replace(/^data:audio\/[^,]+;base64,/, '');
   if (!/^[A-Za-z0-9+/\s]*={0,2}$/.test(base64)) throw new ApiError('Invalid audio encoding.', 400);
   const bytes = Buffer.from(base64, 'base64');
   if (!bytes.length || bytes.length > 3 * 1024 * 1024) throw new ApiError('Record a shorter audio clip (maximum 3 MB).', 413);
-  const allowedMime = /^audio\/(webm|ogg|wav|mpeg|mp3|mp4|x-m4a|flac)(?:;codecs=[\w,.-]+)?$/i;
-  if (!allowedMime.test(mimeType)) throw new ApiError('This audio format is not supported.', 400);
-  const extension = mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : mimeType.includes('wav') ? 'wav' : mimeType.includes('mpeg') || mimeType.includes('mp3') ? 'mp3' : mimeType.includes('flac') ? 'flac' : 'webm';
+  // MediaRecorder includes codec parameters, but Sarvam validates the multipart
+  // file's MIME against bare container types. Preserve the bytes/container.
+  const containerMime = typeof mimeType === 'string' ? mimeType.split(';', 1)[0].trim().toLowerCase() : '';
+  const extensions = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/flac': 'flac' };
+  const extension = extensions[containerMime];
+  if (!extension) throw new ApiError('This audio format is not supported.', 400);
   const form = new FormData();
-  form.set('file', new Blob([bytes], { type: mimeType }), `recording.${extension}`);
+  form.set('file', new Blob([bytes], { type: containerMime }), `recording.${extension}`);
   form.set('model', process.env.SARVAM_STT_MODEL || 'saaras:v4');
   form.set('language_code', normalizeLanguage(language) === 'auto' ? 'unknown' : normalizeLanguage(language));
   const response = await callSarvam('/speech-to-text', { body: form, json: false, signal });

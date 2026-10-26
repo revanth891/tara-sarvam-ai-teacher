@@ -1,3 +1,4 @@
+import { recordingToWav } from '../audio/recording.js';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 export type Turn = { role: 'user' | 'assistant'; content: string; id: number };
 export const LANGUAGES = [['auto','Auto detect'],['en-IN','English'],['hi-IN','हिन्दी'],['te-IN','తెలుగు'],['ta-IN','தமிழ்'],['kn-IN','ಕನ್ನಡ'],['ml-IN','മലയാളം'],['bn-IN','বাংলা'],['mr-IN','मराठी'],['gu-IN','ગુજરાતી'],['pa-IN','ਪੰਜਾਬੀ'],['od-IN','ଓଡ଼ିଆ']] as const;
@@ -95,9 +96,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (requestEpoch !== epoch.current) return; setTranscribing(true);
         const abort = new AbortController(); controller.current = abort;
         try {
-          const blob = new Blob(chunks, { type: rec.mimeType }); if (blob.size < 300) throw new Error('That recording was too short. Please try again.');
+          const recorded = new Blob(chunks, { type: rec.mimeType }); if (recorded.size < 300) throw new Error('That recording was too short. Please try again.'); const blob = await recordingToWav(recorded, audioContext.current!); if (requestEpoch !== epoch.current) return;
           const audio = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = reject; reader.readAsDataURL(blob); });
-          const res = await fetch(apiBase + '/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: abort.signal, body: JSON.stringify({ audio, mimeType: rec.mimeType, language: settings.language }) });
+          const res = await fetch(apiBase + '/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: abort.signal, body: JSON.stringify({ audio, mimeType: blob.type, language: settings.language }) });
           const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Could not understand that audio. Try again.');
           if (requestEpoch !== epoch.current) return;
           const transcript = data.transcript || data.text; if (!transcript?.trim()) throw new Error('I didn’t hear any speech. Please try again.');
@@ -114,6 +115,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   return <ChatContext.Provider value={{ chat, stop, reset, toggleRecording, history, loading, recording, transcribing, speaking, status, error, settings, setSettings, detectedLanguage, timings, analyser, audioBlocked, resumeAudio }}>{children}</ChatContext.Provider>;
 }
 export function useChat() { const context = useContext(ChatContext); if (!context) throw new Error('ChatProvider is required'); return context; }
+
 
 
 

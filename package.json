@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "dev:api": "node sarvam/server.mjs",
     "dev:all": "node scripts/dev.mjs",
-    "test": "node --test sarvam/pipeline.test.mjs"
+    "test": "node --test sarvam/pipeline.test.mjs sarvam/recording.test.mjs"
   },
   "dependencies": {
     "@react-three/drei": "9.75.0",

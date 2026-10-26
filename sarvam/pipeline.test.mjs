@@ -62,7 +62,7 @@ test('text streams immediately and out-of-order synthesis is emitted in order', 
   }
 });
 
-test('transcription uploads native audio and preserves detected language', async () => {
+test('transcription strips codec MIME parameters without changing audio bytes', async () => {
   const originalFetch = globalThis.fetch;
   const originalKey = process.env.SARVAM_API_KEY;
   process.env.SARVAM_API_KEY = 'test-only-key';
@@ -71,10 +71,12 @@ test('transcription uploads native audio and preserves detected language', async
     assert.equal(options.body.get('language_code'), 'unknown');
     assert.equal(options.body.get('model'), 'saaras:v4');
     assert.equal(options.body.get('file').type, 'audio/webm');
+    assert.equal(options.body.get('file').name, 'recording.webm');
+    assert.equal(Buffer.from(await options.body.get('file').arrayBuffer()).toString(), 'fake-webm');
     return Response.json({ transcript: 'నమస్కారం', language_code: 'te-IN' });
   };
   try {
-    const result = await transcribeAudio({ audio: Buffer.from('fake-webm').toString('base64'), mimeType: 'audio/webm' });
+    const result = await transcribeAudio({ audio: Buffer.from('fake-webm').toString('base64'), mimeType: 'audio/webm;codecs=opus' });
     assert.equal(result.language, 'te-IN');
     await assert.rejects(transcribeAudio({ audio: 'not valid%%%' }), /Invalid audio/);
   } finally {
